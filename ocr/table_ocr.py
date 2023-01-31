@@ -3,21 +3,7 @@ import json
 import cv2
 import cv2 as cv
 import numpy as np
-import os
-# from skimage import io,color,exposure,morphology,transform,img_as_float
-# import matplotlib.pyplot as plt
-# import skimage.transform as st
-# import os
-# from PIL import Image
-# import imagehash
-# import shutil
-# import time
-# import copy
-# import skimage
-# from imagesplit import splitImg
-# from paddleocr import PaddleOCR
-# import pytesseract
-from cell_ocr import cell_ocr
+from .cell_ocr import cell_ocr
 
 DEBUG_MODE = True
 RESIZE_MODE = True
@@ -51,7 +37,7 @@ def img_resize(image):
 
 
 
-def table_ocr(imgFilePath, maxCellNum=10, DEBUG_MODE=False):      # maxCellNum 一个表格最多能识别的单元格最大数量
+def table_ocr(imgFilePath, baiduOcr=False, DEBUG_MODE=False):      # maxCellNum 一个表格最多能识别的单元格最大数量
 
     # 读取图片，并转灰度图
     image = cv2.imread(imgFilePath, 1)
@@ -60,7 +46,7 @@ def table_ocr(imgFilePath, maxCellNum=10, DEBUG_MODE=False):      # maxCellNum �
 
     if RESIZE_MODE:
         image = img_resize(image)
-        print(image.shape)
+        # print(image.shape)
 
     if DEBUG_MODE:
         showAndSave(image, 'Original table', 'img/debug/OriginalTable.png')
@@ -175,8 +161,9 @@ def table_ocr(imgFilePath, maxCellNum=10, DEBUG_MODE=False):      # maxCellNum �
             ROI = image[mylisty[i]+padding:mylisty[i+1]-padding, mylistx[j]+padding:mylistx[j+1]-padding]
             ROI_str = cv2.imencode('.jpg', ROI)[1].tobytes()  # 将图片编码成流数据，放到内存缓存中，然后转化成string格式
             ROI_b64 = base64.b64encode(ROI_str)  # 编码成base64
-            #ROI_res = "1"
-            ROI_res = cell_ocr(ROI_b64)  # ocr识别
+            ROI_res = "1"
+            if baiduOcr == True:
+                ROI_res = cell_ocr(ROI_b64)  # ocr识别
             tempRowList.append(ROI_res)
 
             if DEBUG_MODE:
@@ -184,9 +171,6 @@ def table_ocr(imgFilePath, maxCellNum=10, DEBUG_MODE=False):      # maxCellNum �
                 print(ROI_name)
                 cv.imwrite("img/debug/"+ROI_name, ROI)
                 # cv_show(ROI_name, ROI)
-
-            if cellNum > maxCellNum:
-                break
 
         resList.append(tempRowList)
 
@@ -230,7 +214,7 @@ if __name__ == '__main__':
     imgFilePath = "img/table9.jpg"
     outputPath1 = "img/debug/table9.json"
     outputPath2 = "img/debug/table9_replace.json"
-    res = table_ocr(imgFilePath, maxCellNum=500, DEBUG_MODE=True)
+    res = table_ocr(imgFilePath, baiduOcr=False, DEBUG_MODE=True)
 
     with open(outputPath1, "w") as f:
         json.dump(res, f)

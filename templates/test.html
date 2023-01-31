@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+
+<body id="bd">
+    <h1>表格内手写字体识别</h1>
+    <br>
+    <div id="box">
+        <p>请上传需要识别的表格</p>
+        <form id="uploadForm" enctype="multipart/form-data" >
+            <input type="file" name="file">
+            <input type="button" value="识别" id="upFileBtn">
+        </form>
+    </div>
+    <br>
+    <hr>
+    <table id="tt" style="width: 100%; text-align:center;"cellspacing="0" cellpadding="0">
+    </table>
+</body>
+
+<script type="text/javascript" src="../static/js/jquery-3.6.0.js" ></script>
+<script type="text/javascript">
+    $('#upFileBtn').click(function () {
+        var formFile = new FormData($('#uploadForm')[0])
+         $.ajax({
+            url:"http://127.0.0.1:5000/table/ocr",
+            type:"POST",
+            data:formFile,
+            dataType:'json',
+            processData:false,
+            contentType:false,
+            success: function (data) {
+                console.log(data)
+                alert(JSON.stringify(data))
+                table = data["result"];
+                for (var i in table) {
+                    var tab = '<tr>';
+                    for (var j in table[i]) {
+                        tab = tab + '<td>'  + '(' + table[i][j] + ')' + '</td>';
+                    }
+                    tab += '</tr>';
+                    $("#tt").append(tab);
+                }
+            },
+            error : function() {
+                alert('上传失败');
+            }
+         })
+    })
+</script>
+
+</html>
