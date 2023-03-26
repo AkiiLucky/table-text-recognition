@@ -1,12 +1,13 @@
 import requests
 import json
 import base64
+import time
 
 
 API_KEY = "pMEIQuzqnsLHLkdkIA1e19GK"
 SECRET_KEY = "t7VKeb8XU7Hahpe68wRi5ybCbmHhhUkF"
 
-def cell_ocr(img):
+def baidu_ocr(img):
         
     url = "https://aip.baidubce.com/rest/2.0/ocr/v1/handwriting?access_token=" + get_access_token()
 
@@ -14,7 +15,8 @@ def cell_ocr(img):
         'image': 'data:image/jpeg;base64,'+str(img)[2:-1],
         'image_url': '',
         'type': 'https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic',
-        'detect_direction': 'false'
+        'detect_direction': 'false',
+        'recognize_granularity': 'small'
     }
 
     headers = {
@@ -22,15 +24,19 @@ def cell_ocr(img):
         'Accept': 'application/json'
     }
     
-    response = requests.request("POST", url, headers=headers, data=data)
+    response = requests.request("POST", url, headers=headers, data=data).json()
     # print(response.text)
 
-    result_list = response.json()['words_result']
+    while 'words_result' not in response:
+        time.sleep(1)   # 如果请求太快,等一段时间再去请求
+        response = requests.request("POST", url, headers=headers, data=data).json()
+
+    result_list = response['words_result']
     if result_list:
         text = ""
         for r in result_list:
             text += r['words'].strip()
-            text += " " #空格作为分割符
+            text += " "     # 空格作为分割符
         return text
     else:
         return ""
@@ -49,10 +55,9 @@ def get_access_token():
 
 
 if __name__ == '__main__':
-    img_path = "img/cell9.png"
+    img_path = "img/cell12.png"
     img = None
     with open(img_path, 'rb') as f:
         img = base64.b64encode(f.read())
 
-
-    print(cell_ocr(img))
+    print(baidu_ocr(img))

@@ -3,7 +3,9 @@ import json
 import cv2
 import cv2 as cv
 import numpy as np
-from .cell_ocr import cell_ocr
+import threading
+
+from .cell_ocr import baidu_ocr
 
 DEBUG_MODE = True
 RESIZE_MODE = True
@@ -138,48 +140,64 @@ def table_ocr(imgFilePath, baiduOcr=False, DEBUG_MODE=False):      # maxCellNum 
         return result
 
     cellNum = 0  # 已经识别的单元格数量
-    resList = []
+    resArr = [['' for j in range(lenx - 1)] for i in range(leny - 1)]
+
+    # 创建线程
+    threads = []
     for i in range(leny - 1):
         if i + 1 == 6 or i + 1 == 17:  # 牙齿标号行不识别
             continue
-        tempRowList = []
         for j in range(lenx - 1):
             cellNum += 1
+            t = threading.Thread(target=cell_ocr_helper, args=(
+                binary, mylisty, mylistx, i, j, resArr, image, baiduOcr, cellNum))
+            threads.append(t)
+            # cell_ocr_helper(binary, mylisty, mylistx, i, j, resArr, image, baiduOcr, cellNum)
 
-            # 在分割时，第一个参数为y坐标，第二个参数为x坐标
-            padding = 20      # 减小ROI识别框范围
-            ROI = binary[mylisty[i]+padding//2:mylisty[i+1]-padding//2, mylistx[j]+padding:mylistx[j+1]-padding]
+    # 启动线程
+    for t in threads:
+        t.start()
+    # 等待所有线程完成
+    for t in threads:
+        t.join()
 
-            # 如果单元格全为0，不使用ocr程序，直接将返回空字符串
-            if (ROI == 0).all():
-                ROI_res = ""
-                tempRowList.append(ROI_res)
-                continue
-
-            # 使用ocr程序识别，并将结果返回
-            padding = -3  # 增大ROI识别框范围
-            ROI = image[mylisty[i]+padding:mylisty[i+1]-padding, mylistx[j]+padding:mylistx[j+1]-padding]
-            ROI_str = cv2.imencode('.jpg', ROI)[1].tobytes()  # 将图片编码成流数据，放到内存缓存中，然后转化成string格式
-            ROI_b64 = base64.b64encode(ROI_str)  # 编码成base64
-            ROI_res = "1"
-            if baiduOcr == True:
-                ROI_res = cell_ocr(ROI_b64)  # ocr识别
-            tempRowList.append(ROI_res)
-
-            if DEBUG_MODE:
-                ROI_name = str(cellNum)+"--"+str(ROI_res)+".png"
-                print(ROI_name)
-                cv.imwrite("img/debug/"+ROI_name, ROI)
-                # cv_show(ROI_name, ROI)
-
-        resList.append(tempRowList)
-
+    del resArr[5]   # 删除辅助行
+    del resArr[16]
 
     result = {
         "state": "识别成功",
-        "result": resList
+        "result": resArr
     }
     return result
+
+
+def cell_ocr_helper(binary, mylisty, mylistx, i, j, resArr, image, baiduOcr, cellNum):
+    # 在分割时，第一个参数为y坐标，第二个参数为x坐标
+    padding = 16  # 减小ROI识别框范围
+    ROI = binary[mylisty[i] + padding // 2:mylisty[i + 1] - padding // 2, mylistx[j] + padding:mylistx[j + 1] - padding]
+
+    # 如果单元格全为0，不使用ocr程序，直接将返回空字符串
+    if (ROI == 0).all():
+        resArr[i][j] = ""
+        return
+
+    # 使用ocr程序识别，并将结果返回
+    padding = -3  # 增大ROI识别框范围
+    ROI = image[mylisty[i] + padding:mylisty[i + 1] - padding, mylistx[j] + padding:mylistx[j + 1] - padding]
+    ROI_str = cv2.imencode('.jpg', ROI)[1].tobytes()  # 将图片编码成流数据，放到内存缓存中，然后转化成string格式
+    ROI_b64 = base64.b64encode(ROI_str)  # 编码成base64
+    ROI_res = "非空"
+    if baiduOcr == True:
+        ROI_res = baidu_ocr(ROI_b64)  # ocr识别
+    resArr[i][j] = ROI_res
+
+    if DEBUG_MODE:
+        ROI_name = str(cellNum) + "--" + str(ROI_res) + ".png"
+        print(ROI_name)
+        cv.imwrite("img/debug/" + ROI_name, ROI)
+        # cv_show(ROI_name, ROI)
+
+    return
 
 
 def itemFilter(res: dict):  # 基于规则替换的过滤器
@@ -210,19 +228,22 @@ def printTableResult(res: dict):
         for i in range(len(res["result"])):
             print(indexList[i], res["result"][i])
 
+
 if __name__ == '__main__':
     imgFilePath = "img/table9.jpg"
     outputPath1 = "img/debug/table9.json"
     outputPath2 = "img/debug/table9_replace.json"
-    res = table_ocr(imgFilePath, baiduOcr=False, DEBUG_MODE=True)
+    res = table_ocr(imgFilePath, baiduOcr=False, DEBUG_MODE=False)
 
     with open(outputPath1, "w") as f:
         json.dump(res, f)
+    print("\n***************************** 规则过滤前 *****************************")
     printTableResult(res)
 
     res = itemFilter(res)
     with open(outputPath2, "w") as f:
         json.dump(res, f)
+    print("\n***************************** 规则过滤后 *****************************")
     printTableResult(res)
 
     # print(json.dumps(res))
